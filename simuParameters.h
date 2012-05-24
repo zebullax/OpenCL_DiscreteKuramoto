@@ -1,0 +1,15 @@
+#ifndef SIMUPARAMETERS
+#define SIMUPARAMETERS
+
+#define TIMESTEP 0.01
+#define STDDEV 2.44948974 //sqrt(6)
+#define NBOSCILLO 1000
+#define NB_OF_TIMESTEPS 10000
+#define COUPLING_MIN 1.0f
+#define COUPLING_MAX 1.0f
+#define COUPLING_STEP 0.5f
+#define NBOFRUNSFORAVERAGING 25
+#define DEBUGCS
+#define DUMPALLANGLES
+
+#endif
