@@ -52,7 +52,7 @@ long longrand(void)                     /* return next random long */
 float random()
 {
 	long randTerm = longrand();
-	return ((float)(randTerm/m));
+	return ((float)randTerm/(float)m);
 }
 
 //Gives 2 normally distrib number, mean 0 , stddev in param)
