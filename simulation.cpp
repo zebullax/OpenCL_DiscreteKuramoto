@@ -81,7 +81,7 @@ void main()
 		//now bind the command queue to the device		
 		queue = cl::CommandQueue(context, devices[0], 0, &err); 
 		//Create the buffer containing the phases, frequencies, and noises
-		anglesBuffer=cl::Buffer(context,CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,sizeof(float)*NBOSCILLO,angles);
+		anglesBuffer=cl::Buffer(context,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,sizeof(float)*NBOSCILLO,angles);
 		frequenciesBuffer=cl::Buffer(context,CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,sizeof(float)*NBOSCILLO,frequencies);
 		noisesBuffer=cl::Buffer(context,CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,sizeof(float)*NBOSCILLO,whiteNoises);
 		/* BUILD THE PROGRAM & MAKE THE KERNEL */		
@@ -115,12 +115,13 @@ void main()
 #endif
 				/* oscillators init values*/
 				InitOscillators(frequencies,angles,NBOSCILLO,STDDEV);
-
+				MakeSomeNoise(whiteNoises,NBOSCILLO,NOISE_STRENGTH,STDDEV);
 				r=psi=0;
 				/* Enqueue args for kernels and copy buffers */
 				queue.enqueueWriteBuffer(anglesBuffer,CL_TRUE,0,sizeof(float)*NBOSCILLO,angles,NULL,NULL);
 				queue.enqueueWriteBuffer(frequenciesBuffer,CL_TRUE,0,sizeof(float)*NBOSCILLO,frequencies,NULL,NULL);
 				queue.enqueueWriteBuffer(noisesBuffer,CL_TRUE,0,sizeof(float)*NBOSCILLO,whiteNoises,NULL,NULL);
+				/* Set arg for our kernel */
 				kernel.setArg(0,anglesBuffer);
 				kernel.setArg(1,frequenciesBuffer);
 				kernel.setArg(2,noisesBuffer);
@@ -129,20 +130,15 @@ void main()
 				kernel.setArg(5,r);
 				kernel.setArg(6,psi);
 
-				/* SIMU LOOP */
+				/* SIMU LOOP ON TIMESTEP */
 				for (int k=0;k<NB_OF_TIMESTEPS;++k)
 				{
 	#ifdef DEBUGTS
 					std::cout<<"Timestep:"<<k<<endl;		    
 	#endif
 					//todo : can we compute r and psi on gpus ?
-					ComputeOrderParameters(angles,r,psi);
+					ComputeOrderParameters(angles,r,psi,NBOSCILLO);
 					queue.enqueueNDRangeKernel(kernel,offset,global_size,NULL);
-					//*********kernel should start here
-					for (int i=0;i<NBOSCILLO;++i)
-					{
-						//run kernel
-					}
 #ifdef DUMPALLANGLES
 					if(!dumpedAllAngles)
 							anglesToDump[k][i]=angles[i];

@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 #include "numerical.h"
+#include "simuParameters.h"
 
 float RK4(float h,float (*deriv)(float,float),float x0,float t0)
 {
@@ -16,19 +17,6 @@ float RK4(float h,float (*deriv)(float,float),float x0,float t0)
 	result = x0+k1/6+k2/3+k3/3+k4/6;
 
 	return result;
-}
-
-//Gives 2 normally distrib number, mean 0 , stddev in param)
-void BoxMullerTransform(float& z1,float& z2,float stdddev)
-{
-	float u1 =(random());		
-	float u2 =(random());
-	while(u1<=0.)
-		u1 =(random());		
-	while(u2<=0.)
-		u2 =(random());		
-	z1=stdddev*(sqrt(-2*log(u1))*cos((float)(2*PI*u2)));
-	z2=stdddev*(sqrt(-2*log(u2))*sin((float)(2*PI*u1)));
 }
 
 /* Park Miller RNG */
@@ -64,9 +52,24 @@ long longrand(void)                     /* return next random long */
 float random()
 {
 	long randTerm = longrand();
-	return randTerm/m;
+	return ((float)(randTerm/m));
 }
 
+//Gives 2 normally distrib number, mean 0 , stddev in param)
+void BoxMullerTransform(float& z1,float& z2,float stdddev)
+{
+	float u1 =(random());		
+	float u2 =(random());
+	while(u1<=0.)
+		u1 =(random());		
+	while(u2<=0.)
+		u2 =(random());		
+	z1=stdddev*(sqrt(-2*log(u1))*cos((float)(2*PI*u2)));
+	z2=stdddev*(sqrt(-2*log(u2))*sin((float)(2*PI*u1)));
+}
+
+
+//Fill the buffer with normally distributed noize
 void MakeSomeNoise(float* noiseBuffer, int length, float noiseStrength, float stdDev)
 {
 	float w1,w2;
@@ -75,25 +78,21 @@ void MakeSomeNoise(float* noiseBuffer, int length, float noiseStrength, float st
 		if (i%2==0)
 		{
 			BoxMullerTransform(w1,w2,stdDev);
-			frequencies[i]=abs(w1)*TIMESTEP;
+			noiseBuffer[i]=noiseStrength*w1;
 		}
 		else
-		{
-			frequencies[i]=abs(w2);
-		}			
-		noiseBuffer[i]=noiseStrength*randomNoiseTerm();
+			noiseBuffer[i]=noiseStrength*w2;		
 	}
 }
 
 /*************************************************************************** 
 	Kuramoto model specific numerical functions 
 ***************************************************************************/
-#define TIMESTEP 0.01f
-#define STDDEV 2.44948974f //sqrt(6)
 
 void InitOscillators(float* frequencies, float* angles, int nbOscillo, float stdDev)
 {
-	//Draw the nat freq and init angle
+	//Frequencies are normally distributed
+	//Angles are random
 	srand ((unsigned int)time(NULL));
 	float w1,w2;
 	for (int i=0;i<nbOscillo;++i)
@@ -105,7 +104,7 @@ void InitOscillators(float* frequencies, float* angles, int nbOscillo, float std
 		}
 		else
 		{
-			frequencies[i]=abs(w2);
+			frequencies[i]=abs(w2)*TIMESTEP;
 		}					
 		angles[i]=fmod((float)(rand()),(float)(2*PI));
 	}

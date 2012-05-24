@@ -14,4 +14,5 @@ __kernel void updateAngle(__global float* oscillators,__global float* frequencie
 	
 	updatedAngle=fma(TIMESTEP,(randomNoiseTerm+frequency+(CURRENTCOUPLINGSTRENGTH*R*sin(PSI-updatedAngle))),updatedAngle);
 	updatedAngle=fmod(updatedAngle,(float)(2*M_PI_F));
+	oscillators[id]=updatedAngle;
 }
