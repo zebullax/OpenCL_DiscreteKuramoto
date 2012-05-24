@@ -10,6 +10,8 @@
 #define COUPLING_STEP 0.5f
 #define NBOFRUNSFORAVERAGING 25
 #define DEBUGCS
+#define DEBUGTS
+
 //#define DUMPALLANGLES
 #define NOISE_STRENGTH 0.02f
 #endif

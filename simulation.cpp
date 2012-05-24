@@ -35,8 +35,8 @@ void main()
 	cl::Buffer noisesBuffer;
 	cl::CommandQueue queue;
 	cl::NDRange offset(0);
-	cl::NDRange global_size(10);
-	cl::NDRange local_size(0);
+	cl::NDRange global_size(NBOSCILLO);
+	cl::NDRange local_size(1);
 	/* Simu data */
 	float currentCouplingStrength=COUPLING_MIN;
 	float r=0,psi=0;
@@ -133,12 +133,12 @@ void main()
 				/* SIMU LOOP ON TIMESTEP */
 				for (int k=0;k<NB_OF_TIMESTEPS;++k)
 				{
-	#ifdef DEBUGTS
+#ifdef DEBUGTS
 					std::cout<<"Timestep:"<<k<<endl;		    
-	#endif
+#endif
 					//todo : can we compute r and psi on gpus ?
 					ComputeOrderParameters(angles,r,psi,NBOSCILLO);
-					queue.enqueueNDRangeKernel(kernel,offset,global_size,NULL);
+					queue.enqueueNDRangeKernel(kernel,offset,global_size,local_size);
 #ifdef DUMPALLANGLES
 					if(!dumpedAllAngles)
 							anglesToDump[k][i]=angles[i];
@@ -184,6 +184,20 @@ void main()
 		delete angles;angles=0;
 		delete frequencies;frequencies=0;	
 		delete finalCoherencyValue;finalCoherencyValue=0;
+#ifdef DUMPALLANGLES
+		for (int i = 0; i < NB_OF_TIMESTEPS; i++)
+		{
+			delete[]anglesToDump[i];
+		}
+		delete[]anglesToDump;anglesToDump=0;
+#endif
+	}
+	catch(cl::Error error)
+	{
+		std::cout << error.what() << "(" << error.err() << ")" << std::endl;
+		if (angles!=0) delete angles;
+		if (frequencies!=0) delete frequencies;
+		if (finalCoherencyValue!=0) delete finalCoherencyValue;
 #ifdef DUMPALLANGLES
 		for (int i = 0; i < NB_OF_TIMESTEPS; i++)
 		{
