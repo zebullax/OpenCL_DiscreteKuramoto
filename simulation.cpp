@@ -20,8 +20,6 @@
 #include "outputData.h"
 #include "numerical.h"
 
-
-
 void main()
 {
 	/* OPENCL Structs **********/
@@ -42,8 +40,9 @@ void main()
 	float r=0,psi=0;
 	int idx=0;
 	float averagedR=0;
+	//since we make multiple run for averaging the final coherency value , we dont wanna dump all trials , just one... this flag does just that
 	bool dumpedAllAngles=false;
-	//we could just go static alloc on those var as well...
+	/*we could just go static alloc on those var as well..*/
 	float *angles=0,*frequencies=0,*whiteNoises;
 	float* finalCoherencyValue=0; //final r for each step of the coupling strength range
 	/* 
@@ -87,27 +86,26 @@ void main()
 		/* BUILD THE PROGRAM & MAKE THE KERNEL */		
         std::ifstream sourceFile("updateOscillators_kernel.cl");
         std::string sourceCode(std::istreambuf_iterator<char>(sourceFile),(std::istreambuf_iterator<char>()));
-		cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length()+1));         
+		cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(),sourceCode.length()+1));         
         // Make program of the source code in the context
 		cl::Program program = cl::Program(context, source); 
         // Build program for these specific devices
-		program.build(devices); 
+		program.build(devices,"-cl-fast-relaxed-math -cl-mad-enable"); 
 		// Make the kernel
         cl::Kernel kernel(program, "updateAngle");
 		/*********************************/		
 		/*********************************/		
-
 #ifdef DUMPALLANGLES
 		//Init the 2d huge dump array
 		anglesToDump = new float* [NB_OF_TIMESTEPS];
 		for (int i=0;i<NB_OF_TIMESTEPS;++i)
-			anglesToDump[i]=new float[NBOSCILLO+1];
+			anglesToDump[i]=new float[NBOSCILLO];
 #endif
 
 		while(currentCouplingStrength<=COUPLING_MAX)
 		{
 			averagedR=0;
-			dumpedAllAngles=false;
+			dumpedAllAngles=false; 
 			for(int currentRun=0;currentRun<NBOFRUNSFORAVERAGING;++currentRun)
 			{
 #ifdef DEBUGCS
@@ -134,19 +132,17 @@ void main()
 				for (int k=0;k<NB_OF_TIMESTEPS;++k)
 				{
 #ifdef DEBUGTS
-					std::cout<<"Timestep:"<<k<<endl;		    
+					std::cout<<"Timestep:"<<k<<endl;
 #endif
 					//todo : can we compute r and psi on gpus ?
 					ComputeOrderParameters(angles,r,psi,NBOSCILLO);
 					queue.enqueueNDRangeKernel(kernel,offset,global_size,local_size);
+					queue.finish();
 #ifdef DUMPALLANGLES
 					if(!dumpedAllAngles)
-							anglesToDump[k][i]=angles[i];
-#endif
-		
-#ifdef DUMPALLANGLES
-				if(!dumpedAllAngles)
-					anglesToDump[NBOSCILLO][k]=k*TIMESTEP;
+					{
+						 queue.enqueueReadBuffer(anglesBuffer, CL_TRUE, 0, NBOSCILLO * sizeof(float), anglesToDump[k]);
+					}		
 #endif
 				}
 				averagedR+=r;
@@ -162,13 +158,13 @@ void main()
 			}
 			/*
 				Output file : phase dristrib
-			*/		
-			angles[NBOSCILLO]=currentCouplingStrength;
+			*/
+						
 			for (int i=0;i<NBOSCILLO;++i)
 				angles[i] = abs(angles[i]-psi);
 			makeFileName(angleDistribFilename,currentCouplingStrength,"phase_",".dat");
-			outputVectorToFile(angleDistribFilename,angles,NBOSCILLO+1,false,true);
-
+			outputVectorToFile(angleDistribFilename,angles,NBOSCILLO,false,true);
+			
 			//Store Final r and update coupling strength to next value
 			finalCoherencyValue[idx]=averagedR/NBOFRUNSFORAVERAGING;
 			currentCouplingStrength+=COUPLING_STEP;
@@ -181,9 +177,9 @@ void main()
 		outputVectorToFile("coherency.csv",finalCoherencyValue,(int)(1+(COUPLING_MAX-COUPLING_MIN)/COUPLING_STEP),false,true);	
 
 		/********CLEANUP***********/
-		delete angles;angles=0;
-		delete frequencies;frequencies=0;	
-		delete finalCoherencyValue;finalCoherencyValue=0;
+		delete []angles;angles=0;
+		delete []frequencies;frequencies=0;	
+		delete []finalCoherencyValue;finalCoherencyValue=0;
 #ifdef DUMPALLANGLES
 		for (int i = 0; i < NB_OF_TIMESTEPS; i++)
 		{
@@ -195,9 +191,9 @@ void main()
 	catch(cl::Error error)
 	{
 		std::cout << error.what() << "(" << error.err() << ")" << std::endl;
-		if (angles!=0) delete angles;
-		if (frequencies!=0) delete frequencies;
-		if (finalCoherencyValue!=0) delete finalCoherencyValue;
+		if (angles!=0) delete []angles;
+		if (frequencies!=0) delete []frequencies;
+		if (finalCoherencyValue!=0) delete []finalCoherencyValue;
 #ifdef DUMPALLANGLES
 		for (int i = 0; i < NB_OF_TIMESTEPS; i++)
 		{
@@ -208,9 +204,9 @@ void main()
 	}
 	catch(...)
 	{
-		if (angles!=0) delete angles;
-		if (frequencies!=0) delete frequencies;
-		if (finalCoherencyValue!=0) delete finalCoherencyValue;
+		if (angles!=0) delete []angles;
+		if (frequencies!=0) delete []frequencies;
+		if (finalCoherencyValue!=0) delete []finalCoherencyValue;
 #ifdef DUMPALLANGLES
 		for (int i = 0; i < NB_OF_TIMESTEPS; i++)
 		{
