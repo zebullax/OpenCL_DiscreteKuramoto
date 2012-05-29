@@ -3,11 +3,11 @@
 	Final coherency values is averaged over a predefined nb of runs
 */
 
+#pragma warning(disable: 4290) 
+
 #define _CRT_SECURE_NO_WARNINGS
 #define __CL_ENABLE_EXCEPTIONS
 #define __NO_STD_STRING
-
-#include <CL/cl.hpp>
 
 #include <cstdlib>
 #include <cmath>
@@ -16,6 +16,8 @@
 #include <iostream>
 #include <fstream>
 
+#include <CL/cl.hpp>
+//C:\Program Files\AMD APP\lib\x86
 #include "simuParameters.h"
 #include "outputData.h"
 #include "numerical.h"
@@ -33,8 +35,9 @@ void main()
 	cl::Buffer noisesBuffer;
 	cl::CommandQueue queue;
 	cl::NDRange offset(0);
-	cl::NDRange global_size(NBOSCILLO);
+	cl::NDRange global_size(SCALED_NB_OSCILLOS);
 	cl::NDRange local_size(1);
+	cl::Event profilingEvent;
 	/* Simu data */
 	float currentCouplingStrength=COUPLING_MIN;
 	float r=0,psi=0;
@@ -42,6 +45,7 @@ void main()
 	float averagedR=0;
 	//since we make multiple run for averaging the final coherency value , we dont wanna dump all trials , just one... this flag does just that
 	bool dumpedAllAngles=false;
+	double time =.0;
 	/*we could just go static alloc on those var as well..*/
 	float *angles=0,*frequencies=0,*whiteNoises;
 	float* finalCoherencyValue=0; //final r for each step of the coupling strength range
@@ -77,8 +81,12 @@ void main()
 		cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(*iter)(), 0};
 		context = cl::Context(CL_DEVICE_TYPE_GPU, cps); 
 		devices = context.getInfo<CL_CONTEXT_DEVICES>();		
-		//now bind the command queue to the device		
-		queue = cl::CommandQueue(context, devices[0], 0, &err); 
+		//now bind the command queue to the device
+#ifdef PROFILING
+		queue = cl::CommandQueue(context, devices[0], CL_QUEUE_PROFILING_ENABLE); 
+#else
+		queue = cl::CommandQueue(context, devices[0], 0,); 
+#endif		
 		//Create the buffer containing the phases, frequencies, and noises
 		anglesBuffer=cl::Buffer(context,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,sizeof(float)*NBOSCILLO,angles);
 		frequenciesBuffer=cl::Buffer(context,CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,sizeof(float)*NBOSCILLO,frequencies);
@@ -108,6 +116,7 @@ void main()
 			dumpedAllAngles=false; 
 			for(int currentRun=0;currentRun<NBOFRUNSFORAVERAGING;++currentRun)
 			{
+				time=.0;
 #ifdef DEBUGCS
 			std::cout<<currentRun<<" - Coupling strength:"<<currentCouplingStrength<<endl;		    
 #endif
@@ -136,8 +145,14 @@ void main()
 #endif
 					//todo : can we compute r and psi on gpus ?
 					ComputeOrderParameters(angles,r,psi,NBOSCILLO);
-					queue.enqueueNDRangeKernel(kernel,offset,global_size,local_size);
+					queue.enqueueNDRangeKernel(kernel,offset,global_size,local_size,NULL,&profilingEvent);
 					queue.finish();
+#ifdef PROFILING
+					cl_ulong start=profilingEvent.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+					cl_ulong end=profilingEvent.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+					time += 1.e-9 * (end-start);					
+#endif
+
 #ifdef DUMPALLANGLES
 					if(!dumpedAllAngles)
 					{
@@ -145,6 +160,9 @@ void main()
 					}		
 #endif
 				}
+#ifdef PROFILING
+				std::cout << "Average time for kernel to execute " << time/NB_OF_TIMESTEPS << endl;
+#endif
 				averagedR+=r;
 #ifdef DUMPALLANGLES
 				/* For debug purpose , we dump here all the timesteps phase value */
@@ -159,7 +177,7 @@ void main()
 			/*
 				Output file : phase dristrib
 			*/
-						
+			queue.enqueueReadBuffer(anglesBuffer, CL_TRUE, 0, NBOSCILLO * sizeof(float), angles);
 			for (int i=0;i<NBOSCILLO;++i)
 				angles[i] = abs(angles[i]-psi);
 			makeFileName(angleDistribFilename,currentCouplingStrength,"phase_",".dat");
