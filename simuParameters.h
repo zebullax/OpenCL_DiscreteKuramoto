@@ -2,7 +2,8 @@
 #define SIMUPARAMETERS
 
 #define TIMESTEP 0.01f //timestep used for time discretization
-#define STDDEV 2.44948974f //sqrt(6)
+#define STDDEV6 2.44948974f //sqrt(6)
+#define STDDEV_TIMESTEP 0.1f //sqrt(timestep) ...the stddev of a wiener increment is sqrt(dt)
 #define NBOSCILLO 1024
 #define SCALED_NB_OSCILLOS ((int)(NBOSCILLO/4))
 #define NB_OF_TIMESTEPS 10000

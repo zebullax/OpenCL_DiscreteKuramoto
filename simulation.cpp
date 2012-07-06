@@ -17,7 +17,6 @@
 #include <fstream>
 
 #include <CL/cl.hpp>
-//C:\Program Files\AMD APP\lib\x86
 #include "simuParameters.h"
 #include "outputData.h"
 #include "numerical.h"
@@ -46,6 +45,7 @@ void main()
 	//since we make multiple run for averaging the final coherency value , we dont wanna dump all trials , just one... this flag does just that
 	bool dumpedAllAngles=false;
 	double time =.0;
+	time_t begin, end; 
 	/*we could just go static alloc on those var as well..*/
 	float *angles=0,*frequencies=0,*whiteNoises;
 	float* finalCoherencyValue=0; //final r for each step of the coupling strength range
@@ -121,8 +121,8 @@ void main()
 			std::cout<<currentRun<<" - Coupling strength:"<<currentCouplingStrength<<endl;		    
 #endif
 				/* oscillators init values*/
-				InitOscillators(frequencies,angles,NBOSCILLO,STDDEV);
-				MakeSomeNoise(whiteNoises,NBOSCILLO,NOISE_STRENGTH,STDDEV);
+				InitOscillators(frequencies,angles,NBOSCILLO,STDDEV6);
+				MakeSomeNoise(whiteNoises,NBOSCILLO,NOISE_STRENGTH,STDDEV_TIMESTEP);
 				r=psi=0;
 				/* Enqueue args for kernels and copy buffers */
 				queue.enqueueWriteBuffer(anglesBuffer,CL_TRUE,0,sizeof(float)*NBOSCILLO,angles,NULL,NULL);
@@ -136,7 +136,7 @@ void main()
 				kernel.setArg(4,currentCouplingStrength);
 				kernel.setArg(5,r);
 				kernel.setArg(6,psi);
-
+				std::time(&begin);
 				/* SIMU LOOP ON TIMESTEP */
 				for (int k=0;k<NB_OF_TIMESTEPS;++k)
 				{
@@ -161,7 +161,9 @@ void main()
 #endif
 				}
 #ifdef PROFILING
+				std::time(&end);
 				std::cout << "Average time for kernel to execute " << time/NB_OF_TIMESTEPS << endl;
+				std::cout << "Total time :" << difftime(end, begin) << " s"<< std::endl;
 #endif
 				averagedR+=r;
 #ifdef DUMPALLANGLES
